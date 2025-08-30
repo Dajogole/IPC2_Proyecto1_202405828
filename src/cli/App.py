@@ -16,7 +16,7 @@ class StudentInfo:
         self.curso = "Introducción a la Programación y Computación 2"
         self.seccion = "Sección C"
         self.semestre = "4to. Semestre"
-        self.doc = "https://github.com/Dajogole/IPC2_Proyecto1_202405828.git"
+        self.doc = "https://github.com/Dajogole/IPC2_Proyecto1_202405828/tree/main/Documentaci%C3%B3n"
 
     def mostrar(self):
         print("➢ " + self.nombre)
