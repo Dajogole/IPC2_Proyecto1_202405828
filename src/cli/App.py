@@ -34,16 +34,20 @@ class App:
         self.campos = None         
         self.resultados = Lista()  
 
+  
+    def _listar_campos(self):
+        print("Campos disponibles:")
+        i = 0
+        while self.campos is not None and i < self.campos.length():
+            c = self.campos.get(i)
+            print(f" {i}. [{c.get_id()}] {c.get_nombre()}")
+            i += 1
+
     def _elegir_campo_indice(self):
         if self.campos is None or self.campos.length() == 0:
             info("Cargue primero un archivo.")
             return -1
-        print("Campos disponibles:")
-        i = 0
-        while i < self.campos.length():
-            c = self.campos.get(i)
-            print(f" {i}. [{c.get_id()}] {c.get_nombre()}")
-            i += 1
+        self._listar_campos()
         try:
             idx = int(input("Seleccione el índice del campo: ").strip())
             if idx < 0 or idx >= self.campos.length():
@@ -54,6 +58,18 @@ class App:
             info("Entrada inválida.")
             return -1
 
+    def _procesar_un_campo(self, campo):
+        Fs  = MatrizFrecuencia.construir_para_suelo(campo)
+        Ft  = MatrizFrecuencia.construir_para_cultivo(campo)
+        Fps = MatrizPatron.desde(Fs)
+        Fpt = MatrizPatron.desde(Ft)
+        grupos = Agrupador.agrupar(Fps, Fpt)
+        ids_reduc, nombres_reduc, mapping = EtiquetadorReduccion.etiquetar(campo.estaciones(), grupos)
+        Frs = MatrizReducida.desde(Fs, grupos)
+        Frt = MatrizReducida.desde(Ft, grupos)
+        return ResultadoCampo(campo, Fs, Ft, Fps, Fpt, grupos, ids_reduc, nombres_reduc, Frs, Frt)
+
+   
     def run(self):
         parser = ParserXML()
         writer = WriterXML()
@@ -69,36 +85,47 @@ class App:
                     ruta = input(" Opción cargar archivo\n Ingrese la ruta+nombre del archivo: ").strip()
                     self.campos = parser.leer(ruta)
                     info("Archivo cargado. Campos: " + str(self.campos.length()))
-                   
+                    
                     self.resultados.clear()
 
-                elif op == "2": 
+                elif op == "2":  
                     if self.campos is None or self.campos.length() == 0:
                         info("Cargue primero un archivo.")
                         continue
 
+                    
+                    self._listar_campos()
+                    eleccion = input(" Procesar [T]odos o un índice (0..n-1): ").strip()
+
+                    
                     self.resultados.clear()
-                    i = 0
-                    while i < self.campos.length():
-                        campo = self.campos.get(i)
-                        info("Procesando campo: " + campo.get_nombre())
 
-                        Fs = MatrizFrecuencia.construir_para_suelo(campo)
-                        Ft = MatrizFrecuencia.construir_para_cultivo(campo)
-                        Fps = MatrizPatron.desde(Fs)
-                        Fpt = MatrizPatron.desde(Ft)
-                        grupos = Agrupador.agrupar(Fps, Fpt)
-                        ids_reduc, nombres_reduc, mapping = EtiquetadorReduccion.etiquetar(campo.estaciones(), grupos)
-                        Frs = MatrizReducida.desde(Fs, grupos)
-                        Frt = MatrizReducida.desde(Ft, grupos)
-
-                        self.resultados.append(
-                            ResultadoCampo(campo, Fs, Ft, Fps, Fpt, grupos, ids_reduc, nombres_reduc, Frs, Frt)
-                        )
-                        info("✓ Campo procesado: " + campo.get_nombre())
-                        i += 1
-
-                    info("Proceso completado para todos los campos. Total procesados: " + str(self.resultados.length()))
+                 
+                    up = eleccion.upper()
+                    if up in ("T", "A", "ALL", "TODOS"):
+                        i = 0
+                        while i < self.campos.length():
+                            campo = self.campos.get(i)
+                            info("Procesando campo: " + campo.get_nombre())
+                            res = self._procesar_un_campo(campo)
+                            self.resultados.append(res)
+                            info("✓ Campo procesado: " + campo.get_nombre())
+                            i += 1
+                        info("Proceso completado para TODOS los campos. Total procesados: " + str(self.resultados.length()))
+                    else:
+                        
+                        try:
+                            idx = int(eleccion)
+                            if idx < 0 or idx >= self.campos.length():
+                                info("Índice inválido.")
+                                continue
+                            campo = self.campos.get(idx)
+                            info("Procesando campo: " + campo.get_nombre())
+                            res = self._procesar_un_campo(campo)
+                            self.resultados.append(res)
+                            info("Proceso completado para el campo seleccionado.")
+                        except Exception:
+                            info("Entrada inválida. Use 'T' para todos o un índice numérico válido.")
 
                 elif op == "3":  
                     if self.resultados.length() == 0:
@@ -116,15 +143,26 @@ class App:
                         info("Procese primero el archivo (opción 2).")
                         continue
 
-                    
                     idx = self._elegir_campo_indice()
                     if idx < 0:
                         continue
 
-                    
                     tipo = input(" Graficar [F|Fp|Fr]: ").strip().upper()
-                    res = self.resultados.get(idx)
+                    
+                    campo_elegido = self.campos.get(idx)
+                  
+                    pos = -1
+                    i = 0
+                    while i < self.resultados.length():
+                        if self.resultados.get(i).campo().get_id() == campo_elegido.get_id():
+                            pos = i
+                            break
+                        i += 1
+                    if pos == -1:
+                        info("Ese campo no fue procesado en la opción 2. Vuelve a procesarlo (uno o todos).")
+                        continue
 
+                    res = self.resultados.get(pos)
                     if tipo == "F":
                         renderer.graficar_F(res.campo(), res.Fs(), res.Ft())
                     elif tipo == "FP":
